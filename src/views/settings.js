@@ -6,6 +6,8 @@ import { TYPES, formatGoal, metricLabel } from '../metrics.js';
 import { today, diffDays, formatShortYear } from '../dates.js';
 import { rerender, navigate } from '../router.js';
 import { applyTheme, installState } from '../app-shell.js';
+import { isNative, shareFile } from '../native.js';
+import { healthSection } from './health-settings.js';
 
 function metricRow(m, i, list) {
   const desc = [TYPES[m.type].label, m.category, formatGoal(m)].filter(Boolean).join(' · ');
@@ -16,6 +18,21 @@ function metricRow(m, i, list) {
     h('div', { class: 'mr-actions' },
       h('button', { type: 'button', class: 'icon-btn small', 'aria-label': `Monter ${m.name}`, disabled: i === 0, onclick: () => { moveMetric(m.id, -1); rerender(); } }, '↑'),
       h('button', { type: 'button', class: 'icon-btn small', 'aria-label': `Descendre ${m.name}`, disabled: i === list.length - 1, onclick: () => { moveMetric(m.id, 1); rerender(); } }, '↓')));
+}
+
+/** Browser: download the file. Android app: open the share sheet (Drive, e-mail, Fichiers…). */
+async function saveExport(filename, content, type) {
+  if (!isNative()) {
+    download(filename, content, type);
+    return true;
+  }
+  try {
+    await shareFile(filename, content, 'Sauvegarde Daily Tracker');
+    return true;
+  } catch (err) {
+    if (!/cancel/i.test(err.message || '')) toast(`Export impossible : ${err.message}`);
+    return false;
+  }
 }
 
 function backupSection() {
@@ -50,12 +67,14 @@ function backupSection() {
 
   return h('section', { class: 'card' },
     h('h2', { class: 'card-title' }, 'Sauvegarde'),
-    h('p', null, 'Tes données sont enregistrées uniquement dans ce navigateur, sur cet appareil. Exporte une sauvegarde régulièrement (par exemple chaque mois) et range-la dans ton cloud.'),
+    h('p', null, isNative()
+      ? 'Tes données sont enregistrées uniquement dans cette appli, sur ce téléphone. Exporte une sauvegarde régulièrement (par exemple chaque mois) et range-la dans ton cloud.'
+      : 'Tes données sont enregistrées uniquement dans ce navigateur, sur cet appareil. Exporte une sauvegarde régulièrement (par exemple chaque mois) et range-la dans ton cloud.'),
     h('p', { class: 'muted' }, `${days} jour${days > 1 ? 's' : ''} de données · dernière sauvegarde : `,
       last ? `${formatShortYear(last.slice(0, 10))} (il y a ${age} j)` : 'jamais'),
     h('div', { class: 'actions start' },
-      h('button', { type: 'button', class: 'btn primary', onclick: () => { download(`daily-tracker-${today()}.json`, exportJSON(), 'application/json'); stamp(); rerender(); } }, 'Exporter (JSON)'),
-      h('button', { type: 'button', class: 'btn', onclick: () => download(`daily-tracker-${today()}.csv`, `﻿${exportCSV()}`, 'text/csv;charset=utf-8') }, 'Exporter pour tableur (CSV)')),
+      h('button', { type: 'button', class: 'btn primary', onclick: () => saveExport(`daily-tracker-${today()}.json`, exportJSON(), 'application/json').then((ok) => { if (ok) { stamp(); rerender(); } }) }, 'Exporter (JSON)'),
+      h('button', { type: 'button', class: 'btn', onclick: () => saveExport(`daily-tracker-${today()}.csv`, `﻿${exportCSV()}`, 'text/csv;charset=utf-8') }, 'Exporter pour tableur (CSV)')),
     h('div', { class: 'actions start' },
       h('button', { type: 'button', class: 'btn', onclick: pick('merge') }, 'Importer et fusionner…'),
       h('button', { type: 'button', class: 'btn', onclick: pick('replace') }, 'Importer et remplacer…'),
@@ -135,8 +154,9 @@ export function renderSettings() {
         h('ul', { class: 'metric-rows' }, archived.map((m) => h('li', { class: 'metric-row' },
           h('a', { class: 'mr-main', href: `#/metric/${m.id}` }, h('strong', null, metricLabel(m)), h('small', null, TYPES[m.type].label)),
           h('button', { type: 'button', class: 'btn small', onclick: () => { updateMetric(m.id, { archived: false }); toast('Métrique réactivée'); rerender(); } }, 'Réactiver'))))) : null),
+    healthSection(),
     backupSection(),
-    storageSection(),
+    isNative() ? null : storageSection(),
     h('section', { class: 'card' },
       h('h2', { class: 'card-title' }, 'Apparence'),
       h('label', { class: 'field' }, h('span', { class: 'field-label' }, 'Thème'), theme)),

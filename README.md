@@ -24,6 +24,37 @@ et garde tes données **sur ton appareil**. Objectif : être prêt pour 2027.
   JSON (sauvegarde complète) ou CSV (Excel, Numbers, Google Sheets), importe
   une sauvegarde, thème clair/sombre.
 
+## Appli Android et montre connectée
+
+L'appli Android (dossier `android/`) contient la même application, plus une
+synchronisation avec **Health Connect** : à chaque ouverture, elle lit tes **pas**
+et ton **sommeil** (durée, heure de coucher et de réveil) écrits par l'appli de ta
+montre — COROS, ou toute autre montre qui écrit dans Health Connect — et remplit les
+métriques correspondantes.
+
+1. Une fois pour toutes, crée le secret du dépôt `ANDROID_KEYSTORE_PASSWORD`
+   (Settings → Secrets and variables → Actions → New repository secret) avec un mot de
+   passe d'au moins 12 caractères, gardé dans ton gestionnaire de mots de passe. Il protège
+   la clé qui signe l'APK (voir [`android/README.md`](android/README.md)).
+2. Dans l'appli COROS : Profil → Réglages → Applications tierces → Health Connect,
+   autorise *Pas* et *Sommeil*.
+3. Sur ton téléphone, ouvre https://github.com/Gurvananas/daily-tracker/releases/latest,
+   télécharge `daily-tracker.apk` et installe-le (autorise l'installation depuis ton
+   navigateur quand Android le demande).
+4. Dans l'appli : Réglages → *Montre connectée* → *Autoriser l'accès*.
+
+Règles de la synchronisation :
+- elle relit les 7 derniers jours à chaque ouverture (30 jours la première fois) ;
+- le sommeil est rangé au jour du réveil ;
+- une valeur modifiée à la main n'est jamais écrasée ; efface-la pour que la synchro
+  la remplisse de nouveau ;
+- dans Réglages → *Montre connectée*, tu choisis quelle métrique reçoit quelle donnée.
+
+Les données de l'appli Android sont séparées de celles du navigateur : pour passer de
+l'une à l'autre, exporte une sauvegarde JSON puis importe-la. L'APK est compilé et publié
+par `.github/workflows/android.yml` à chaque push sur `main` (détails dans
+[`android/README.md`](android/README.md)).
+
 ## Utiliser l'application
 
 ### En local
@@ -33,7 +64,8 @@ npm start          # → http://localhost:8080
 npm test           # tests de la logique (dates, objectifs, statistiques, import/export)
 ```
 
-Aucune dépendance à installer : c'est du HTML/CSS/JavaScript natif (modules ES).
+L'appli web n'a aucune dépendance : c'est du HTML/CSS/JavaScript natif (modules ES).
+Les paquets npm (`npm ci`) ne servent qu'à fabriquer l'appli Android.
 
 ### Sur ton téléphone (GitHub Pages)
 
@@ -89,6 +121,10 @@ src/
 tests/                tests unitaires (node --test)
 scripts/              serveur local, génération des icônes PNG
 ```
+
+Dossiers ajoutés pour Android : `android/` (projet Capacitor + `HealthSyncPlugin.kt`),
+`src/native.js` (pont vers le natif), `src/health.js` (synchronisation Health Connect),
+`capacitor.config.json`. `npm run android:sync` copie l'appli web dans le projet Android.
 
 Après une modification des fichiers de l'app, incrémente `CACHE` dans `sw.js`
 (`daily-tracker-v2`, …) pour forcer la mise à jour du cache hors-ligne, et

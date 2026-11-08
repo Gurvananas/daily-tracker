@@ -1,12 +1,15 @@
 // "Aujourd'hui": fill in every active metric for a given day.
 
 import { h } from '../ui.js';
-import { getState, activeMetrics, getValue, setValue } from '../store.js';
+import { getState, activeMetrics, getValue, setValue, isSyncedValue } from '../store.js';
 import { today, addDays, formatDay, dayOfYear, daysInYear, diffDays } from '../dates.js';
 import { formatGoal, goalMet, isFilled, parseTime, formatTime } from '../metrics.js';
 import { loggingStreak } from '../stats.js';
 import { renderOnboarding } from './library.js';
-import { navigate } from '../router.js';
+import { navigate, rerender } from '../router.js';
+import { isNative } from '../native.js';
+import { healthMetricIds, syncHealth, healthStatus } from '../health.js';
+import { syncLabel } from './health-settings.js';
 
 const TARGET_YEAR = 2027;
 
@@ -156,12 +159,20 @@ function statusFor(metric, v) {
   return h('span', { class: 'status done' }, '✓ Noté');
 }
 
-function metricCard(metric, date, onChange) {
+function sourceNote(date, metric) {
+  const v = getValue(date, metric.id);
+  if (!isFilled(v)) return '⌚ rempli par la montre';
+  return isSyncedValue(date, metric.id) ? '⌚ depuis la montre' : '✎ saisi à la main';
+}
+
+function metricCard(metric, date, onChange, fromWatch) {
   const statusHost = h('div', { class: 'mc-status' }, statusFor(metric, getValue(date, metric.id)));
+  const source = fromWatch ? h('span', { class: 'mc-source' }, sourceNote(date, metric)) : null;
   const save = (v) => {
     setValue(date, metric.id, v);
     statusHost.replaceChildren(statusFor(metric, v) || '');
     card.classList.toggle('filled', isFilled(v));
+    if (source) source.textContent = sourceNote(date, metric);
     onChange();
   };
   const card = h('article', { class: `card metric-card type-${metric.type}`, 'data-id': metric.id },
@@ -169,11 +180,38 @@ function metricCard(metric, date, onChange) {
       metric.emoji ? h('span', { class: 'mc-emoji', 'aria-hidden': 'true' }, metric.emoji) : null,
       h('div', { class: 'mc-title' },
         h('h3', null, metric.name),
-        metric.goal ? h('span', { class: 'mc-goal' }, formatGoal(metric)) : null),
+        metric.goal ? h('span', { class: 'mc-goal' }, formatGoal(metric)) : null,
+        source),
       statusHost),
     controlFor(metric, getValue(date, metric.id), save));
   card.classList.toggle('filled', isFilled(getValue(date, metric.id)));
   return card;
+}
+
+/** Android app: sync status with a refresh button, or a prompt to connect the watch. */
+function watchBar() {
+  const label = h('span', null, syncLabel(getState().settings.health));
+  const btn = h('button', { type: 'button', class: 'btn small' }, 'Actualiser');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Synchronisation…';
+    try {
+      await syncHealth({ days: 7 });
+    } catch (err) {
+      label.textContent = `Synchronisation impossible : ${err.message}`;
+      btn.disabled = false;
+      btn.textContent = 'Réessayer';
+      return;
+    }
+    rerender();
+  });
+  const bar = h('div', { class: 'watch-bar' }, h('span', { 'aria-hidden': 'true' }, '⌚'), label, btn);
+  healthStatus().then((st) => {
+    if (st.steps || st.sleep) return;
+    bar.replaceChildren(h('span', { 'aria-hidden': 'true' }, '⌚'),
+      h('a', { href: '#/settings' }, 'Connecte ta montre pour remplir automatiquement tes pas et ton sommeil'));
+  }).catch(() => {});
+  return bar;
 }
 
 export function renderToday(dateParam) {
@@ -215,6 +253,7 @@ export function renderToday(dateParam) {
     h('div', { class: 'summary-row' }, progressText, streakText),
     h('div', { class: 'meter', 'aria-hidden': 'true' }, meter));
 
+  const watchIds = isNative() ? healthMetricIds() : new Set();
   const list = h('div', { class: 'metric-list' });
   if (!metrics.length) {
     list.append(h('p', { class: 'card' }, 'Aucune métrique active. ', h('a', { href: '#/settings' }, 'Ajoutes-en dans les réglages.')));
@@ -222,7 +261,7 @@ export function renderToday(dateParam) {
   const categories = [...new Set(metrics.map((m) => m.category || ''))];
   for (const cat of categories) {
     const group = h('section', { class: 'group' }, cat ? h('h2', { class: 'group-title' }, cat) : null);
-    for (const m of metrics.filter((x) => (x.category || '') === cat)) group.append(metricCard(m, date, refreshSummary));
+    for (const m of metrics.filter((x) => (x.category || '') === cat)) group.append(metricCard(m, date, refreshSummary, watchIds.has(m.id)));
     list.append(group);
   }
 
@@ -231,7 +270,9 @@ export function renderToday(dateParam) {
     nav, tools,
     isToday ? yearBanner(t) : null,
     isToday ? backupReminder() : null,
-    summary, list,
+    summary,
+    watchIds.size ? watchBar() : null,
+    list,
     h('p', { class: 'muted center small' }, 'Tout est enregistré automatiquement.'));
 }
 

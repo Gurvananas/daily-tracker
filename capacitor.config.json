@@ -1,0 +1,8 @@
+{
+  "appId": "io.github.gurvananas.dailytracker",
+  "appName": "Daily Tracker",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  }
+}

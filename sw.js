@@ -1,6 +1,6 @@
 // Offline support: the app shell is precached, then served stale-while-revalidate
 // so the app opens instantly (even offline) and picks up updates on the next launch.
-const CACHE = 'daily-tracker-v1';
+const CACHE = 'daily-tracker-v2';
 const SHELL = [
   './',
   './index.html',
@@ -25,6 +25,9 @@ const SHELL = [
   './src/views/settings.js',
   './src/views/editor.js',
   './src/views/library.js',
+  './src/views/health-settings.js',
+  './src/native.js',
+  './src/health.js',
 ];
 
 self.addEventListener('install', (event) => {

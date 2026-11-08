@@ -1,0 +1,121 @@
+# Builds the Android app (APK). On main, publishes it as a GitHub release so it can be
+# downloaded from the phone: https://github.com/<owner>/<repo>/releases/latest
+name: Android APK
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'android/**'
+      - 'src/**'
+      - 'index.html'
+      - 'styles.css'
+      - 'icons/**'
+      - 'capacitor.config.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/build-www.mjs'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install & test
+        run: |
+          npm ci
+          npm test
+
+      - name: Copy the web app into the Android project
+        run: npm run android:sync
+
+      # The signing key must stay the same from one version to the next, otherwise Android
+      # refuses to install the update. It is created once here, protected by the repository
+      # secret ANDROID_KEYSTORE_PASSWORD, and stored encrypted in android/signing/.
+      # Without the secret, a throwaway key is used and nothing is published (test build).
+      - name: Signing key
+        id: key
+        env:
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$PASSWORD" ]; then
+            echo "::warning::Secret ANDROID_KEYSTORE_PASSWORD absent : APK de test signé avec une clé jetable, non publié."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ ${#PASSWORD} -lt 12 ]; then
+            echo "::error::Le secret ANDROID_KEYSTORE_PASSWORD doit faire au moins 12 caractères."
+            exit 1
+          fi
+          KS="$RUNNER_TEMP/release.p12"
+          if [ -f android/signing/release.p12.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in android/signing/release.p12.enc -out "$KS" -pass env:PASSWORD
+          else
+            keytool -genkeypair -storetype PKCS12 -keystore "$KS" -alias daily-tracker -keyalg RSA -keysize 3072 \
+              -validity 36500 -storepass:env PASSWORD -dname "CN=Daily Tracker"
+            mkdir -p android/signing
+            openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$KS" -out android/signing/release.p12.enc -pass env:PASSWORD
+            echo "created=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "file=$KS" >> "$GITHUB_OUTPUT"
+          echo "release=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ steps.key.outputs.file }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
+        run: |
+          NAME=${{ steps.key.outputs.release == 'true' && 'daily-tracker.apk' || 'daily-tracker-test.apk' }}
+          cp android/app/build/outputs/apk/release/app-release.apk "$NAME"
+          echo "APK_NAME=$NAME" >> "$GITHUB_ENV"
+          rm -f "${{ steps.key.outputs.file }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daily-tracker-apk
+          path: ${{ env.APK_NAME }}
+
+      - name: Save the encrypted signing key
+        if: steps.key.outputs.created == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add android/signing/release.p12.enc
+          git commit -m "Add encrypted Android signing key"
+          git push origin "HEAD:${{ github.ref_name }}"
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main' && steps.key.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "android-${{ github.run_number }}" daily-tracker.apk \
+            --title "Daily Tracker pour Android (version ${{ github.run_number }})" \
+            --notes "Télécharge **daily-tracker.apk** depuis ton téléphone Android, ouvre-le et accepte l'installation. Une nouvelle version s'installe par-dessus l'ancienne sans perdre tes données." \
+            --latest

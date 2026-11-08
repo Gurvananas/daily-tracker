@@ -1,0 +1,8 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Daily Tracker</string>
+    <string name="title_activity_main">Daily Tracker</string>
+    <string name="package_name">io.github.gurvananas.dailytracker</string>
+    <string name="custom_url_scheme">io.github.gurvananas.dailytracker</string>
+    <string name="health_rationale">Daily Tracker lit uniquement tes pas et ton sommeil dans Health Connect pour remplir automatiquement tes métriques du jour (pas, durée de sommeil, heures de coucher et de réveil).\n\nCes données restent sur ton téléphone : elles ne sont envoyées nulle part et l\'application n\'écrit rien dans Health Connect.\n\nTu peux retirer cet accès à tout moment dans Health Connect.</string>
+</resources>
