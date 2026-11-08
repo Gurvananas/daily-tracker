@@ -10,8 +10,31 @@ export function emptyState() {
     version: SCHEMA_VERSION,
     metrics: [],
     entries: {},
-    settings: { theme: 'auto', lastBackup: null, statsPeriod: '30', yearMetric: '' },
+    settings: { theme: 'auto', lastBackup: null, statsPeriod: '30', yearMetric: '', health: defaultHealth() },
+    // Values filled by the Health Connect sync, per day: { '2027-01-01': ['metricId'] }.
+    // A value typed by hand is removed from here and is never overwritten by the sync.
+    synced: {},
   };
+}
+
+export const HEALTH_KEYS = ['steps', 'sleep', 'bedtime', 'wakeup'];
+
+export function defaultHealth() {
+  return { map: {}, lastSync: null, lastResult: null };
+}
+
+function normalizeHealth(h) {
+  const out = defaultHealth();
+  if (!h || typeof h !== 'object') return out;
+  for (const k of HEALTH_KEYS) {
+    const v = h.map?.[k];
+    if (typeof v === 'string' && v) out.map[k] = v.slice(0, 40);
+  }
+  if (typeof h.lastSync === 'string') out.lastSync = h.lastSync;
+  if (h.lastResult && typeof h.lastResult === 'object') {
+    out.lastResult = { read: Number(h.lastResult.read) || 0, updated: Number(h.lastResult.updated) || 0 };
+  }
+  return out;
 }
 
 /** Validate & clean any (possibly hand-edited or older) state object. */
@@ -48,8 +71,16 @@ export function normalizeState(raw) {
     lastBackup: typeof s.lastBackup === 'string' ? s.lastBackup : null,
     statsPeriod: typeof s.statsPeriod === 'string' ? s.statsPeriod : base.settings.statsPeriod,
     yearMetric: typeof s.yearMetric === 'string' ? s.yearMetric : '',
+    health: normalizeHealth(s.health),
   };
-  return { version: SCHEMA_VERSION, metrics, entries, settings };
+  const synced = {};
+  const rawSynced = raw.synced && typeof raw.synced === 'object' ? raw.synced : {};
+  for (const [date, ids] of Object.entries(rawSynced)) {
+    if (!entries[date] || !Array.isArray(ids)) continue;
+    const kept = [...new Set(ids)].filter((id) => id in entries[date]);
+    if (kept.length) synced[date] = kept;
+  }
+  return { version: SCHEMA_VERSION, metrics, entries, settings, synced };
 }
 
 /**
@@ -63,10 +94,15 @@ export function mergeStates(current, incoming) {
   const ids = new Set(metrics.map((m) => m.id));
   for (const m of b.metrics) if (!ids.has(m.id)) metrics.push(m);
   const entries = structuredClone(a.entries);
+  const synced = structuredClone(a.synced);
   for (const [date, day] of Object.entries(b.entries)) {
     entries[date] = { ...(entries[date] || {}), ...day };
+    // Imported values replace current ones: their "synced" flag comes from the import.
+    const fromImport = new Set(b.synced[date] || []);
+    const kept = (synced[date] || []).filter((id) => !(id in day));
+    synced[date] = [...kept, ...[...fromImport]];
   }
-  return normalizeState({ ...a, metrics, entries });
+  return normalizeState({ ...a, metrics, entries, synced });
 }
 
 export function exportPayload(state) {

@@ -10,6 +10,8 @@ import { renderYear } from './views/year.js';
 import { renderSettings } from './views/settings.js';
 import { renderEditor } from './views/editor.js';
 import { renderLibrary } from './views/library.js';
+import { isNative } from './native.js';
+import { autoSync } from './health.js';
 
 const routes = [
   { re: /^#\/today(?:\/(\d{4}-\d{2}-\d{2}))?$/, tab: 'today', title: 'Aujourd\'hui', view: (m) => renderToday(m[1]) },
@@ -65,6 +67,20 @@ window.addEventListener('storage', (e) => {
   render({ keepScroll: true });
 });
 
+/** Re-render after background changes, unless the user is typing. */
+function refreshIfIdle() {
+  const el = document.activeElement;
+  if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+  render({ keepScroll: true });
+}
+
+/** Android app: pull steps & sleep from Health Connect, then show them. */
+async function syncWatch() {
+  if (!isNative()) return;
+  const res = await autoSync();
+  if (res?.updated) refreshIfIdle();
+}
+
 // When the app comes back to the foreground on a new day, "Aujourd'hui" must follow.
 let lastDay = new Date().toDateString();
 document.addEventListener('visibilitychange', () => {
@@ -72,13 +88,15 @@ document.addEventListener('visibilitychange', () => {
   const now = new Date().toDateString();
   if (now !== lastDay) {
     lastDay = now;
-    if (/^#\/(today|stats|year)?$/.test(location.hash || '#/today') || location.hash === '') render({ keepScroll: true });
+    if (/^#\/(today|stats|year)?$/.test(location.hash || '#/today') || location.hash === '') refreshIfIdle();
   }
+  syncWatch();
 });
 
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
 applyTheme();
 installTooltips();
-registerServiceWorker();
+if (!isNative()) registerServiceWorker(); // the Android app ships its files, no offline cache needed
 render();
+syncWatch();

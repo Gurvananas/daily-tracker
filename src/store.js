@@ -41,16 +41,39 @@ export const activeMetrics = () => state.metrics.filter((m) => !m.archived);
 export const getMetric = (id) => state.metrics.find((m) => m.id === id);
 export const getValue = (date, id) => state.entries[date]?.[id];
 
-export function setValue(date, id, value) {
-  const day = { ...(state.entries[date] || {}) };
+function applyValue(entries, synced, date, id, value, fromSync) {
+  const day = { ...(entries[date] || {}) };
   if (isFilled(value)) day[id] = value;
   else delete day[id];
-  const entries = { ...state.entries };
   if (Object.keys(day).length) entries[date] = day;
   else delete entries[date];
-  state = { ...state, entries };
+  const flags = new Set(synced[date] || []);
+  if (fromSync && isFilled(value)) flags.add(id);
+  else flags.delete(id);
+  if (flags.size) synced[date] = [...flags];
+  else delete synced[date];
+}
+
+/** Value typed by hand (it will no longer be overwritten by the Health Connect sync). */
+export function setValue(date, id, value) {
+  const entries = { ...state.entries };
+  const synced = { ...state.synced };
+  applyValue(entries, synced, date, id, value, false);
+  state = { ...state, entries, synced };
   persist();
 }
+
+/** Values coming from Health Connect: [{ date, id, value }], saved in one go. */
+export function setSyncedValues(updates) {
+  if (!updates.length) return;
+  const entries = { ...state.entries };
+  const synced = { ...state.synced };
+  for (const u of updates) applyValue(entries, synced, u.date, u.id, u.value, true);
+  state = { ...state, entries, synced };
+  persist();
+}
+
+export const isSyncedValue = (date, id) => Boolean(state.synced[date]?.includes(id));
 
 export function addMetrics(list) {
   const metrics = [...state.metrics, ...list.map(createMetric)];
@@ -85,7 +108,7 @@ export function deleteMetric(id) {
     const { [id]: _removed, ...rest } = day;
     if (Object.keys(rest).length) entries[date] = rest;
   }
-  state = { ...state, metrics: state.metrics.filter((m) => m.id !== id), entries };
+  state = normalizeState({ ...state, metrics: state.metrics.filter((m) => m.id !== id), entries });
   persist();
 }
 

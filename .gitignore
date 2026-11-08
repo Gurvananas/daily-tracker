@@ -1,3 +1,8 @@
 node_modules/
 _site/
+www/
 .DS_Store
+# Signing keys never go in clear in the repository (see android/README.md)
+*.keystore
+*.jks
+*.p12
