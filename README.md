@@ -1,2 +1,95 @@
-# daily-tracker
-Personnal daily tracker
+# Daily Tracker
+
+Ton suivi quotidien personnel : sommeil, humeur, sport, habitudes, journal…
+Une application web installable sur téléphone (PWA), qui fonctionne hors-ligne
+et garde tes données **sur ton appareil**. Objectif : être prêt pour 2027.
+
+## Ce que fait l'application
+
+- **Aujourd'hui** — remplis chaque métrique du jour en quelques touches
+  (Oui/Non, note de 1 à 5 ou 1 à 10, compteur +/−, nombre avec unité, durée,
+  heure, texte libre). Tout s'enregistre automatiquement. Navigation jour par
+  jour pour rattraper un oubli, compte à rebours avant 2027 puis avancement de
+  l'année.
+- **Objectifs** — « au moins », « au plus », « avant 23:00 », « Oui »… Chaque
+  carte indique si l'objectif du jour est atteint.
+- **Tendances** — par métrique, sur 7 j / 30 j / 90 j / 1 an / année en cours :
+  moyenne, min–max, total, % d'objectif atteint, série en cours et record,
+  graphique interactif (survol ou flèches du clavier) et tableau des valeurs.
+  Au-delà de 90 jours, le graphique montre des moyennes hebdomadaires.
+- **Année** — « année en pixels » : un carré par jour, 12 mois × 31 jours, pour
+  une métrique ou pour l'assiduité globale. Touche un jour pour l'ouvrir.
+- **Réglages** — crée tes propres métriques ou pioche dans une bibliothèque
+  (22 modèles), réordonne, archive (sans perdre l'historique), exporte en
+  JSON (sauvegarde complète) ou CSV (Excel, Numbers, Google Sheets), importe
+  une sauvegarde, thème clair/sombre.
+
+## Utiliser l'application
+
+### En local
+
+```bash
+npm start          # → http://localhost:8080
+npm test           # tests de la logique (dates, objectifs, statistiques, import/export)
+```
+
+Aucune dépendance à installer : c'est du HTML/CSS/JavaScript natif (modules ES).
+
+### Sur ton téléphone (GitHub Pages)
+
+1. Fusionne cette branche dans `main`.
+2. Sur GitHub : **Settings → Pages → Source : GitHub Actions**.
+   (Pages sur un dépôt privé nécessite un compte GitHub Pro ; sinon rends le
+   dépôt public — tes données, elles, ne sont jamais dans le dépôt.)
+3. Le workflow `.github/workflows/pages.yml` lance les tests puis publie le site
+   à chaque push sur `main`. L'adresse apparaît dans l'onglet Actions.
+4. Ouvre l'adresse sur ton téléphone puis :
+   - **iPhone** : Safari → Partager → *Sur l'écran d'accueil* ;
+   - **Android** : Chrome → menu → *Installer l'application*.
+
+Tout autre hébergeur de fichiers statiques (Netlify, Cloudflare Pages…) convient
+aussi : il suffit de servir `index.html`, `styles.css`, `sw.js`,
+`manifest.webmanifest`, `icons/` et `src/`.
+
+## Tes données
+
+- Elles sont stockées dans le navigateur (`localStorage`), uniquement sur
+  l'appareil utilisé. Rien n'est envoyé sur internet.
+- Un téléphone et un ordinateur ont donc chacun leurs propres données : choisis
+  un appareil principal (le téléphone, en général).
+- **Fais des sauvegardes** : Réglages → *Exporter (JSON)*, une fois par mois par
+  exemple. L'application te le rappelle si tu n'as pas sauvegardé depuis 30 jours.
+  L'import peut *fusionner* (ajoute aux données existantes) ou *remplacer*.
+- Installer l'app sur l'écran d'accueil protège mieux les données contre
+  l'effacement automatique du navigateur (bouton « Protéger mes données »).
+
+## Préparer 2027
+
+D'ici le 1er janvier, utilise l'app quelques semaines pour roder ta liste :
+garde 5 à 8 métriques que tu remplis vraiment, ajuste les objectifs, archive le
+reste. Le jour J, la grille 2027 de l'onglet *Année* commencera à se remplir.
+
+## Structure du code
+
+```
+index.html            coquille de l'app + barre d'onglets
+styles.css            styles (thèmes clair et sombre)
+sw.js                 service worker (fonctionnement hors-ligne)
+manifest.webmanifest  installation PWA
+src/
+  app.js              routeur (#/today, #/stats, #/year, #/settings…)
+  store.js            état + persistance localStorage
+  data.js             schéma, validation, fusion d'imports, export CSV
+  metrics.js          types de métriques, bibliothèque, objectifs, formats
+  stats.js            moyennes, séries, niveaux de couleur (fonctions pures)
+  charts.js           graphiques SVG et grilles de jours
+  dates.js            dates locales « AAAA-MM-JJ »
+  ui.js               petits utilitaires DOM, infobulles, notifications
+  views/              écrans : today, stats, year, settings, editor, library
+tests/                tests unitaires (node --test)
+scripts/              serveur local, génération des icônes PNG
+```
+
+Après une modification des fichiers de l'app, incrémente `CACHE` dans `sw.js`
+(`daily-tracker-v2`, …) pour forcer la mise à jour du cache hors-ligne, et
+ajoute tout nouveau fichier JS à la liste `SHELL`.

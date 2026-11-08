@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Daily Tracker</title>
+  <meta name="description" content="Ton suivi quotidien : sommeil, humeur, sport, habitudes… Prêt pour 2027.">
+  <meta name="theme-color" content="#f9f9f7">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Tracker">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply the saved theme before first paint to avoid a flash.
+    try {
+      const t = JSON.parse(localStorage.getItem('daily-tracker:v1') || '{}')?.settings?.theme;
+      if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+    } catch (e) { /* ignore */ }
+  </script>
+  <script type="module" src="src/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#view">Aller au contenu</a>
+  <header class="topbar">
+    <a class="brand" href="#/today"><img src="icons/icon.svg" alt="" width="28" height="28"><span>Daily Tracker</span></a>
+    <nav class="tabbar" aria-label="Navigation principale">
+      <a href="#/today" data-tab="today">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.5 2.5L16 9.5"/></svg>
+        <span>Aujourd'hui</span>
+      </a>
+      <a href="#/stats" data-tab="stats">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"/><path d="m5 15 4-5 4 3 6-7"/></svg>
+        <span>Tendances</span>
+      </a>
+      <a href="#/year" data-tab="year">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/></svg>
+        <span>Année</span>
+      </a>
+      <a href="#/settings" data-tab="settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+        <span>Réglages</span>
+      </a>
+    </nav>
+  </header>
+  <main id="view" class="container" tabindex="-1"></main>
+  <noscript><p class="container">Daily Tracker a besoin de JavaScript pour fonctionner.</p></noscript>
+</body>
+</html>
